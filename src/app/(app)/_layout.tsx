@@ -1,9 +1,10 @@
-import { Redirect } from 'expo-router';
-import { useAuth } from '@/context/auth-context';
+import React from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { Redirect, Stack } from 'expo-router';
+import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/hooks/use-theme';
 
-export default function Index() {
+export default function AppLayout() {
   const { state } = useAuth();
   const theme = useTheme();
 
@@ -15,11 +16,18 @@ export default function Index() {
     );
   }
 
-  if (state.isAuthenticated) {
-    return <Redirect href="/dashboard" />;
+  if (!state.isAuthenticated) {
+    return <Redirect href="/login" />;
   }
 
-  return <Redirect href="/login" />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}
+    />
+  );
 }
 
 const styles = StyleSheet.create({

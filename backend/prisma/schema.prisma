@@ -1,0 +1,170 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  users       User[]
+
+  @@map("roles")
+}
+
+model User {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username            String               @unique
+  email               String               @unique
+  passwordHash        String               @map("password_hash")
+  roleId              Int                  @map("role_id")
+  role                Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  fullName            String               @map("full_name")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  ordersCreated       Order[]              @relation("OrdersCreated")
+  prescriptions       Prescription[]
+  bills               Bill[]
+  packingRecords      PackingRecord[]
+  assignedDeliveries  DeliveryAssignment[] @relation("AssignedTo")
+  createdAssignments  DeliveryAssignment[] @relation("AssignedBy")
+  deliveryRecords     DeliveryRecord[]
+  statusChanges       OrderStatusHistory[]
+  activityLogs        ActivityLog[]
+  notifications       Notification[]
+
+  @@map("users")
+}
+
+model Order {
+  id                String               @id
+  patientName       String               @map("patient_name")
+  doctorName        String               @map("doctor_name")
+  address           String
+  contactNumber     String               @map("contact_number")
+  scheduledDatetime DateTime             @map("scheduled_datetime")
+  status            String               @default("NEW")
+  createdById       String               @map("created_by_id") @db.Uuid
+  createdBy         User                 @relation("OrdersCreated", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  prescriptions     Prescription[]
+  bills             Bill[]
+  packingRecords    PackingRecord[]
+  assignments       DeliveryAssignment[]
+  deliveryRecords   DeliveryRecord[]
+  statusHistory     OrderStatusHistory[]
+
+  @@map("orders")
+}
+
+model Prescription {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId      String   @map("order_id")
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fileUrl      String   @map("file_url")
+  uploadedById String   @map("uploaded_by_id") @db.Uuid
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+
+  @@map("prescriptions")
+}
+
+model Bill {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId    String   @map("order_id")
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount     Decimal  @db.Decimal(10, 2)
+  fileUrl    String   @map("file_url")
+  billedById String   @map("billed_by_id") @db.Uuid
+  billedBy   User     @relation(fields: [billedById], references: [id])
+  billedAt   DateTime @default(now()) @map("billed_at")
+
+  @@map("bills")
+}
+
+model PackingRecord {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId     String   @map("order_id")
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fileUrl     String   @map("file_url")
+  packedById  String   @map("packed_by_id") @db.Uuid
+  packedBy    User     @relation(fields: [packedById], references: [id])
+  packedAt    DateTime @default(now()) @map("packed_at")
+
+  @@map("packing_records")
+}
+
+model DeliveryAssignment {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId       String   @map("order_id")
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  deliveryBoyId String   @map("delivery_boy_id") @db.Uuid
+  deliveryBoy   User     @relation("AssignedTo", fields: [deliveryBoyId], references: [id], onDelete: Restrict)
+  assignedById  String   @map("assigned_by_id") @db.Uuid
+  assignedBy    User     @relation("AssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  assignedAt    DateTime @default(now()) @map("assigned_at")
+  status        String   @default("ASSIGNED") // ASSIGNED, OUT_FOR_DELIVERY, COMPLETED, FAILED
+
+  @@map("delivery_assignments")
+}
+
+model DeliveryRecord {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId         String   @map("order_id")
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  deliveryBoyId   String   @map("delivery_boy_id") @db.Uuid
+  deliveryBoy     User     @relation(fields: [deliveryBoyId], references: [id], onDelete: Restrict)
+  status          String   // DELIVERED, UNDELIVERED
+  paymentReceived Boolean  @default(false) @map("payment_received")
+  paymentAmount   Decimal  @default(0.00) @map("payment_amount") @db.Decimal(10, 2)
+  remarks         String?
+  recordedAt      DateTime @default(now()) @map("recorded_at")
+
+  @@map("delivery_records")
+}
+
+model OrderStatusHistory {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId        String   @map("order_id")
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  previousStatus String?  @map("previous_status")
+  newStatus      String   @map("new_status")
+  changedById    String   @map("changed_by_id") @db.Uuid
+  changedBy      User     @relation(fields: [changedById], references: [id])
+  remarks        String?
+  timestamp      DateTime @default(now())
+
+  @@map("order_status_history")
+}
+
+model ActivityLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  action         String
+  orderId        String?  @map("order_id")
+  previousStatus String?  @map("previous_status")
+  newStatus      String?  @map("new_status")
+  timestamp      DateTime @default(now())
+
+  @@map("activity_logs")
+}
+
+model Notification {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String?
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("notifications")
+}
